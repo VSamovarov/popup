@@ -65,7 +65,7 @@ class OverlayLayer {
     `
     overlay.id = 'overlay-layer-js'
     // Add a click event handler to the overlay element
-    overlay.addEventListener('click', (e) => {
+    overlay.addEventListener('click', () => {
       // When you click on a layer, we generate a clickOverlay event
       const clickOutsideEvent = new CustomEvent('clickOverlay',{detail: this})
       document.dispatchEvent(clickOutsideEvent)
