@@ -1,5 +1,5 @@
-import overlayLayer from './overlayLayer.js'
 const idPopup = 'popup-js'
+const classNamePopup = 'popup'
 
 /**
  * Mechanism for PopUp
@@ -17,19 +17,29 @@ const idPopup = 'popup-js'
  * in detail - link to popup contents {HTMLElement}
  */
 class PopUp {
-  constructor() {
+  static instance = null
+
+  /**
+   * @param {Object.<string, function(): Promise<HTMLElement|null>|HTMLElement|null>} contentFunctionsMapper
+   * @return {PopUp}
+   */
+  constructor(contentFunctionsMapper) {
     if (PopUp.instance) {
       return PopUp.instance
     }
     PopUp.instance = this
-    this.popup = this.#createPopUp()
-    this.overlayLayer = overlayLayer
+    this.contentFunctionsMapper = contentFunctionsMapper
+    this.popup = null
     this.content = null
+    this.initialize()
   }
 
+  /**
+   *
+   * @return {PopUp}
+   */
   close() {
     this.popup.style.display = 'none'
-    this.overlayLayer.close()
     this.popup.classList.remove('open')
     const closeEvent = new CustomEvent('popup:close', {detail: this.content})
     document.dispatchEvent(closeEvent)
@@ -39,10 +49,13 @@ class PopUp {
     return this
   }
 
+  /**
+   *
+   * @return {PopUp}
+   */
   open() {
     this.popup.style.display = 'flex'
     this.popup.classList.add('open')
-    this.overlayLayer.open()
     const openEvent = new CustomEvent('popup:open', {detail: this.content})
     document.dispatchEvent(openEvent)
     return this
@@ -61,11 +74,61 @@ class PopUp {
     return this
   }
 
+  initialize() {
+    this.popup = this.createPopUp()
+    const popUpButtons = document.querySelectorAll(
+      this.getSelectorsByContentFunctionsMapper()
+    )
+    popUpButtons.forEach(async (popUpButton) => {
+      popUpButton.addEventListener('click', this.handler.bind(this))
+    })
+  }
+
+  /**
+   *
+   * @param event
+   * @return {Promise<void>}
+   */
+  async handler(event) {
+    event.preventDefault()
+    const popUpButton = event.target
+    if (!popUpButton.popupContent) {
+      popUpButton.popupContent = await this.fetchContent(popUpButton)
+    }
+    this.setContent(popUpButton.popupContent)
+      .open()
+  }
+
+  /**
+   *
+   * @param popUpButton
+   * @return {Promise<HTMLElement|null>}
+   */
+  async fetchContent(popUpButton) {
+    try {
+      const attributeName = Array.from(popUpButton.attributes)
+        .map(attribute => attribute.name)
+        .find(name => this.contentFunctionsMapper.hasOwnProperty(name))
+      const attributeValue = popUpButton.getAttribute(attributeName)
+      /**
+       * @type {HTMLElement|null}
+       */
+      const content = await this.contentFunctionsMapper[attributeName](attributeValue, popUpButton, this)
+      if (content) {
+        content.classList.add(`${classNamePopup}__wrapper`, attributeName)
+      }
+      return content
+    } catch (error) {
+      console.error(error)
+    }
+  }
+
+
   /**
    * Create PopUp
    * @returns {HTMLElement}
    */
-  #createPopUp() {
+  createPopUp() {
     const popup = document.createElement('div')
     popup.style.cssText = `
       position: fixed;
@@ -80,17 +143,24 @@ class PopUp {
       justify-content: center;
       `
     popup.id = idPopup
-    popup.classList.add('popup')
+    popup.classList.add(classNamePopup, `${classNamePopup}__overlay-Layer`)
     document.body.appendChild(popup)
     // window.addEventListener('resize', this.close.bind(this))
-    document.addEventListener('clickOverlay', this.close.bind(this))
     popup.addEventListener('click', (e) => {
-      if(e.target.id === idPopup) {
+      if (e.target.id === idPopup) {
         this.close.call(this)
       }
     })
     return popup
   }
+
+  /**
+   *
+   * @return {string}
+   */
+  getSelectorsByContentFunctionsMapper() {
+    return '[' + Object.keys(this.contentFunctionsMapper).join('],[') + ']'
+  }
 }
 
-export default new PopUp()
+export default PopUp

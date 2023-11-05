@@ -1,4 +1,11 @@
-import popupsOpen from './popupsOpen.js'
+import PopUp from './inc/popup.js'
+import targetById from './inc/contents/targetById.js'
+import fetchContentFromURL from './inc/contents/fetchContentFromURL.js'
 
-console.log('dddddddddddddddddd')
-popupsOpen()
+
+const contentFunctionsMapper = {
+  'data-popup-open-target-by-id': targetById,
+  'data-popup-open-target-by-url': fetchContentFromURL
+}
+
+new PopUp(contentFunctionsMapper)
