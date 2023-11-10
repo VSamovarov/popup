@@ -3,24 +3,13 @@ const classNamePopup = 'popup'
 
 /**
  * Mechanism for PopUp
- *
- * Usage example
- *
- * const new PopUp()
- * const popupContent = document.getElementById(targetId)
- * popup.setContent(popupContent).open()
- *
- * popup.close()
- *
- * Opening and closing a window triggers events on document
- * popup:close and popup:close respectively
- * in detail - link to popup contents {HTMLElement}
  */
 class PopUp {
   static instance = null
-
   /**
-   * @param {Object.<string, function(): Promise<HTMLElement|null>|HTMLElement|null>} contentFunctionsMapper
+   * @param {Object.<string,
+   *   function(attributeValue: string, popUpButton: HTMLElement, context: this):
+   *   Promise<HTMLElement|null>|HTMLElement|null>} contentFunctionsMapper
    * @return {PopUp}
    */
   constructor(contentFunctionsMapper) {
@@ -35,14 +24,14 @@ class PopUp {
   }
 
   /**
+   * Open PopUp
    *
    * @return {PopUp}
    */
   close() {
     this.popup.style.display = 'none'
     this.popup.classList.remove('open')
-    const closeEvent = new CustomEvent('popup:close', {detail: this.content})
-    document.dispatchEvent(closeEvent)
+    this.addEvent('popup:close')
     if (this.content && this.popup.contains(this.content)) {
       this.popup.removeChild(this.content)
     }
@@ -50,19 +39,20 @@ class PopUp {
   }
 
   /**
+   * Close PopUp
    *
    * @return {PopUp}
    */
   open() {
     this.popup.style.display = 'flex'
     this.popup.classList.add('open')
-    const openEvent = new CustomEvent('popup:open', {detail: this.content})
-    document.dispatchEvent(openEvent)
+    this.addEvent('popup:open')
     return this
   }
 
   /**
    * Inserting content
+   *
    * @param {HTMLElement|null} content
    * @returns {PopUp}
    */
@@ -85,6 +75,7 @@ class PopUp {
   }
 
   /**
+   * handler opens a PopUp when a button is clicked
    *
    * @param event
    * @return {Promise<void>}
@@ -92,40 +83,59 @@ class PopUp {
   async handler(event) {
     event.preventDefault()
     const popUpButton = event.target
-    if (!popUpButton.popupContent) {
-      popUpButton.popupContent = await this.fetchContent(popUpButton)
+    this.addEvent('popup:startFetchContent')
+    try {
+      if (!popUpButton.popupContent) {
+        popUpButton.popupContent = await this.fetchContent(popUpButton)
+      }
+      this.addEvent('popup:endFetchContent')
+      this.setContent(popUpButton.popupContent)
+        .open()
+    } catch (error) {
+      this.addEvent('popup:errorFetchContent', {error})
+      console.error(error)
     }
-    this.setContent(popUpButton.popupContent)
-      .open()
   }
 
   /**
+   * Factory method.
+   * Receiving content for PopUp
    *
    * @param popUpButton
    * @return {Promise<HTMLElement|null>}
    */
   async fetchContent(popUpButton) {
-    try {
-      const attributeName = Array.from(popUpButton.attributes)
-        .map(attribute => attribute.name)
-        .find(name => this.contentFunctionsMapper.hasOwnProperty(name))
-      const attributeValue = popUpButton.getAttribute(attributeName)
-      /**
-       * @type {HTMLElement|null}
-       */
-      const content = await this.contentFunctionsMapper[attributeName](attributeValue, popUpButton, this)
-      if (content) {
-        content.classList.add(`${classNamePopup}__wrapper`, attributeName)
-      }
-      return content
-    } catch (error) {
-      console.error(error)
-    }
-  }
+    /**
+     * We are looking for the first attribute of the popUpButton element,
+     * which matches the name of one of the contentFunctionsMapper attributes.
+     * Returns the name of only one matched attribute. The rest - ignores
+     *
+     * @type {string|null}
+     */
+    const attributeName = Array.from(popUpButton.attributes)
+      .map(attribute => attribute.name)
+      .find(name => this.contentFunctionsMapper.hasOwnProperty(name))
 
+    if (!attributeName) return null
+    const attributeValue = popUpButton.getAttribute(attributeName)
+    /**
+     * @type {function( attributeValue: string, popUpButton: HTMLElement, context: this): (Promise<HTMLElement|null>|HTMLElement|null)}
+     */
+    const contentMethod = this.contentFunctionsMapper[attributeName]
+    if (!contentMethod) return null
+    /**
+     * @type {HTMLElement|null}
+     */
+    const content = await contentMethod(attributeValue, popUpButton, this)
+    if (content) {
+      content.classList.add(`${classNamePopup}__wrapper`, attributeName)
+    }
+    return content
+  }
 
   /**
    * Create PopUp
+   *
    * @returns {HTMLElement}
    */
   createPopUp() {
@@ -155,11 +165,24 @@ class PopUp {
   }
 
   /**
+   * Create a selector to select all buttons that open PopUp
    *
    * @return {string}
    */
   getSelectorsByContentFunctionsMapper() {
     return '[' + Object.keys(this.contentFunctionsMapper).join('],[') + ']'
+  }
+
+  /**
+   * Helper for creating an event
+   *
+   * @param {string} name
+   * @param {Object|null} addDetail
+   */
+  addEvent(name, addDetail = null) {
+    const detail = Object.assign({}, {popup: this}, addDetail)
+    const event = new CustomEvent(name, {detail})
+    document.dispatchEvent(event)
   }
 }
 

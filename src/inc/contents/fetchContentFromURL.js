@@ -5,26 +5,20 @@
  * You can do the same for various APIs
  *
  * @param {string} url
- * @param {string} selector - on the page received from the URL
- * @return {Promise<HTMLElement|DocumentFragment>}
+ * @param {HTMLElement} popUpButton
+ * @return {Promise<HTMLElement>}
  */
-export default function (url, selector) {
-  return new Promise((resolve, reject) => {
-    fetch(url)
-      .then((response) => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`)
-        }
-        return response.text()
-      })
-      .then((content) => {
-        const parser = new DOMParser()
-        const doc = parser.parseFromString(content, 'text/html')
-        const fetchContent = doc.querySelector(selector ?? 'body')
-        resolve(fetchContent)
-      })
-      .catch((error) => {
-        reject(error)
-      })
+export default async function (url, popUpButton) {
+  const selector = popUpButton.dataset.selector
+  const response = await fetch(url, {
+    mode: 'no-cors'
   })
+  if (!response.ok) {
+    throw new Error(`HTTP error! Status: ${response.status}`)
+  }
+  const content = await response.text()
+  const parser = new DOMParser()
+  const doc = parser.parseFromString(content, 'text/html')
+  console.log(doc.querySelector('body'))
+  return doc.querySelector(selector ?? 'body')
 }
